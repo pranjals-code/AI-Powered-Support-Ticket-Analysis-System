@@ -12,55 +12,33 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post("/signup", status_code=status.HTTP_201_CREATED)
 def signup(user: UserCreate, db: Session = Depends(get_db)):
-    existing_user = db.query(User).filter(
-        User.email == user.email
-    ).first()
+    existing_user = db.query(User).filter(User.email == user.email).first()
 
     if existing_user:
-        raise HTTPException(
-            status_code=400,
-            detail="User already exists"
-        )
+        raise HTTPException(status_code=400, detail="User already exists")
 
     new_user = User(
-        email=user.email,
-        hashed_password=hash_password(user.password),
-        role=user.role
+        email=user.email, hashed_password=hash_password(user.password), role=user.role
     )
 
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
 
-    return {
-        "message": "User created successfully",
-        "user_id": new_user.id
-    }
+    return {"message": "User created successfully", "user_id": new_user.id}
 
 
 @router.post("/login", response_model=TokenResponse)
 def login(user: UserLogin, db: Session = Depends(get_db)):
-    db_user = db.query(User).filter(
-        User.email == user.email
-    ).first()
+    db_user = db.query(User).filter(User.email == user.email).first()
 
-    if not db_user or not verify_password(
-        user.password,
-        db_user.hashed_password
-    ):
+    if not db_user or not verify_password(user.password, db_user.hashed_password):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password"
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password"
         )
 
     access_token = create_access_token(
-        data={
-            "sub": str(db_user.id),
-            "role": db_user.role
-        }
+        data={"sub": str(db_user.id), "role": db_user.role}
     )
 
-    return {
-        "access_token": access_token,
-        "token_type": "bearer"
-    }
+    return {"access_token": access_token, "token_type": "bearer"}
