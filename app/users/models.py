@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Enum
 from app.core.database import Base
 from app.core.enums import UserRole
 
+
 class User(Base):
     __tablename__ = "users"
 
