@@ -1,7 +1,9 @@
 from fastapi import FastAPI
+from app.auth.router import router as auth_router
 
-# Create FastAPI application instance
 app = FastAPI(title="AI Support Ticket System")
+
+app.include_router(auth_router)
 
 
 @app.get("/health")
