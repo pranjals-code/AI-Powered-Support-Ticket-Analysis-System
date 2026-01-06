@@ -1,17 +1,29 @@
 from pydantic_settings import BaseSettings
+from pydantic import ConfigDict
 
 
 class Settings(BaseSettings):
+    # ------------------
     # Application
+    # ------------------
     app_name: str
     environment: str
 
-    # Database (Postgres)
+    # ------------------
+    # Database
+    # ------------------
     postgres_user: str
     postgres_password: str
     postgres_db: str
     postgres_host: str
     postgres_port: int
+
+    # ------------------
+    # JWT / Security
+    # ------------------
+    secret_key: str
+    algorithm: str
+    access_token_expire_minutes: int
 
     @property
     def database_url(self) -> str:
@@ -23,9 +35,10 @@ class Settings(BaseSettings):
             f"{self.postgres_db}"
         )
 
-    class Config:
-        env_file = ".env"
-        extra = "forbid"  # explicit & safe
+    model_config = ConfigDict(
+        env_file=".env",
+        extra="ignore",  # prevents crashes from unused env vars
+    )
 
 
 settings = Settings()
