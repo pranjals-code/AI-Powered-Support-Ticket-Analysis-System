@@ -1,6 +1,7 @@
 import pytest
 from app.core.config import Settings
 
+
 # Unit test for Settings class
 def test_settings_database_url():
     settings = Settings(
@@ -13,7 +14,7 @@ def test_settings_database_url():
         postgres_port=5432,
         secret_key="secret",
         algorithm="HS256",
-        access_token_expire_minutes=30
+        access_token_expire_minutes=30,
     )
     expected_url = "postgresql+psycopg2://user:pass@localhost:5432/testdb"
     assert settings.database_url == expected_url
