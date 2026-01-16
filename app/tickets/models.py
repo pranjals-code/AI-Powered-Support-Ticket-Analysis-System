@@ -6,6 +6,7 @@ from sqlalchemy import (
     ForeignKey,
     DateTime,
     Enum as SqlEnum,
+    LargeBinary,
 )
 from sqlalchemy.sql import func
 
@@ -36,6 +37,14 @@ class Ticket(Base):
         SqlEnum(TicketCategory),
         nullable=True,  # AI will set this later
     )
+
+    # Photo/Screenshot (max 6 MB) - stored as binary
+    photo = Column(LargeBinary, nullable=True)
+    photo_filename = Column(String(255), nullable=True)
+
+    # File attachment (max 10 MB) - stored as binary
+    file = Column(LargeBinary, nullable=True)
+    file_filename = Column(String(255), nullable=True)
 
     created_by = Column(
         Integer,
