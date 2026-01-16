@@ -5,6 +5,7 @@ class UserRole(str, Enum):
     ADMIN = "ADMIN"
     AGENT = "AGENT"
     MANAGER = "MANAGER"
+    USER = "USER"
 
 
 class TicketStatus(str, Enum):

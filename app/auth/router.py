@@ -3,14 +3,23 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.users.models import User
-from app.users.schemas import UserCreate, UserLogin, TokenResponse
+from app.users.schemas import (
+    UserCreate,
+    UserLogin,
+    SignupResponse,
+    LoginResponse,
+)
 from app.core.security.password import hash_password, verify_password
 from app.core.security.jwt import create_access_token
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
-@router.post("/signup", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/signup",
+    response_model=SignupResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def signup(user: UserCreate, db: Session = Depends(get_db)):
     existing_user = db.query(User).filter(User.email == user.email).first()
 
@@ -30,10 +39,15 @@ def signup(user: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
 
-    return {"message": "User created successfully", "user_id": new_user.id}
+    return {
+        "message": "Account created successfully",
+        "user_id": new_user.id,
+        "email": new_user.email,
+        "role": new_user.role,
+    }
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=LoginResponse)
 def login(user: UserLogin, db: Session = Depends(get_db)):
     db_user = db.query(User).filter(User.email == user.email).first()
 
@@ -50,4 +64,8 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
         data={"sub": str(db_user.id), "role": db_user.role}
     )
 
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {
+        "message": "Login successful",
+        "access_token": access_token,
+        "token_type": "bearer",
+    }

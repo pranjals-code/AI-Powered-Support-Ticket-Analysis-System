@@ -22,11 +22,11 @@ def get_current_user(
             settings.secret_key,
             algorithms=[settings.algorithm],
         )
-        print("JWT PAYLOAD:", payload)  # 👈 ADD THIS
+        print("JWT PAYLOAD:", payload)
 
         user_id = int(payload.get("sub"))
 
-    except Exception as e:  # 👈 CATCH EVERYTHING TEMPORARILY
+    except Exception as e:
         print("JWT ERROR:", str(e))
         raise HTTPException(status_code=401, detail="Invalid token")
 
