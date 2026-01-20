@@ -176,9 +176,7 @@ def get_all_tickets(
     sort_by: str = Query("created_at", description="Field to sort by"),
     order: str = Query("desc", regex="^(asc|desc)$", description="Sort order"),
     status: Optional[str] = Query(None, description="Filter by status"),
-    search: Optional[str] = Query(
-        None, description="Search in title and description"
-    ),
+    search: Optional[str] = Query(None, description="Search in title and description"),
 ):
     """
     Get all tickets with pagination and sorting.
@@ -218,8 +216,7 @@ def get_all_tickets(
     if search:
         search_term = f"%{search}%"
         query = query.filter(
-            (Ticket.title.ilike(search_term))
-            | (Ticket.description.ilike(search_term))
+            (Ticket.title.ilike(search_term)) | (Ticket.description.ilike(search_term))
         )
 
     # Get total count before pagination
