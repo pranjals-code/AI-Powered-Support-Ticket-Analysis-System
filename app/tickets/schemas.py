@@ -36,6 +36,21 @@ class TicketResponse(BaseModel):
         from_attributes = True
 
 
+# -------------------------
+# Paginated Response
+# -------------------------
+class PaginatedTicketResponse(BaseModel):
+    data: list[TicketResponse]
+    total: int
+    page: int
+    size: int
+    pages: int
+
+
+class DeleteResponseMessage(BaseModel):
+    message: str
+
+
 class TicketStatusUpdate(BaseModel):
     status: TicketStatus
 
