@@ -1,17 +1,19 @@
-from fastapi import APIRouter, Depends, status, File, UploadFile, Form
+from fastapi import APIRouter, Depends, status, File, UploadFile, Form, Query
 from sqlalchemy.orm import Session
 from typing import Optional
 from fastapi import HTTPException
+import math
 
 from app.core.database import get_db
 from app.tickets.models import Ticket
 from app.tickets.schemas import (
     TicketResponse,
+    PaginatedTicketResponse,
+    DeleteResponseMessage,
 )
 from app.core.enums import TicketStatus, UserRole
 from app.auth.dependencies import get_current_user
 from app.users.models import User
-
 
 # File size limits
 MAX_PHOTO_SIZE = 6 * 1024 * 1024  # 6 MB
@@ -60,10 +62,7 @@ async def _handle_file_operations(
         return
 
     if not is_creator:
-        detail_msg = (
-            "Only the ticket creator can add or "
-            "remove attachments"
-        )
+        detail_msg = "Only the ticket creator can add or " "remove attachments"
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=detail_msg,
@@ -166,18 +165,87 @@ async def create_ticket(
 
 @router.get(
     "",
-    response_model=list[TicketResponse],
+    response_model=PaginatedTicketResponse,
     status_code=status.HTTP_200_OK,
 )
 def get_all_tickets(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    size: int = Query(10, ge=1, le=100, description="Items per page"),
+    sort_by: str = Query("created_at", description="Field to sort by"),
+    order: str = Query("desc", regex="^(asc|desc)$", description="Sort order"),
+    status: Optional[str] = Query(None, description="Filter by status"),
+    search: Optional[str] = Query(
+        None, description="Search in title and description"
+    ),
 ):
     """
-    Get all tickets ordered by creation date (newest first).
+    Get all tickets with pagination and sorting.
+
+    Query Parameters:
+    - page: Page number (default: 1)
+    - size: Items per page (default: 10, max: 100)
+    - sort_by: Field to sort by (default: created_at)
+    - order: Sort order - 'asc' or 'desc' (default: desc)
+    - status: Filter by ticket status (optional)
+    - search: Search in title and description (optional)
     """
-    tickets = db.query(Ticket).order_by(Ticket.created_at.desc()).all()
-    return tickets
+    # Validate sort_by field
+    valid_sort_fields = {
+        "created_at": Ticket.created_at,
+        "updated_at": Ticket.updated_at,
+        "title": Ticket.title,
+        "status": Ticket.status,
+        "priority": Ticket.priority,
+    }
+
+    if sort_by not in valid_sort_fields:
+        sort_by = "created_at"
+
+    # Build base query
+    query = db.query(Ticket)
+
+    # Apply status filter if provided
+    if status:
+        try:
+            ticket_status = TicketStatus[status.upper()]
+            query = query.filter(Ticket.status == ticket_status)
+        except KeyError:
+            pass  # Invalid status, ignore filter
+
+    # Apply search filter if provided
+    if search:
+        search_term = f"%{search}%"
+        query = query.filter(
+            (Ticket.title.ilike(search_term))
+            | (Ticket.description.ilike(search_term))
+        )
+
+    # Get total count before pagination
+    total = query.count()
+
+    # Apply sorting
+    sort_column = valid_sort_fields[sort_by]
+    if order.lower() == "asc":
+        query = query.order_by(sort_column.asc())
+    else:
+        query = query.order_by(sort_column.desc())
+
+    # Apply pagination
+    offset = (page - 1) * size
+    tickets = query.offset(offset).limit(size).all()
+
+    # Calculate total pages
+    total_pages = math.ceil(total / size) if total > 0 else 1
+
+    return PaginatedTicketResponse(
+        data=tickets,
+        total=total,
+        page=page,
+        size=size,
+        pages=total_pages,
+    )
 
 
 @router.patch(
@@ -278,3 +346,57 @@ async def update_ticket(
     db.refresh(ticket)
 
     return ticket
+
+
+@router.delete(
+    "/{ticket_id}",
+    response_model=DeleteResponseMessage,
+    status_code=status.HTTP_200_OK,
+)
+def delete_ticket(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Delete a ticket by ID.
+    Only MANAGER and ADMIN roles can delete tickets.
+    Only CLOSED tickets can be deleted. Tickets in other statuses
+    cannot be deleted.
+    USER role cannot delete any ticket.
+
+    Responses:
+    - 200: Ticket deleted successfully
+    - 400: Ticket must be in CLOSED status to delete
+    - 403: Only managers and admins can delete tickets
+    - 404: Ticket ID does not exist
+    """
+    # Check if user is MANAGER or ADMIN
+    if current_user.role not in [UserRole.ADMIN, UserRole.MANAGER]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only managers and admins can delete tickets",
+        )
+
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+
+    if not ticket:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Ticket ID {ticket_id} does not exist",
+        )
+
+    # Check if ticket status is CLOSED
+    if ticket.status != TicketStatus.CLOSED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Ticket must be in CLOSED status to delete. "
+                f"Current status: {ticket.status.value}"
+            ),
+        )
+
+    db.delete(ticket)
+    db.commit()
+
+    return {"message": "Ticket deleted successfully"}
