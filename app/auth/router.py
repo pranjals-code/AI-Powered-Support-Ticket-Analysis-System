@@ -18,7 +18,11 @@ from app.users.schemas import (
 )
 from app.core.security.password import hash_password, verify_password
 from app.core.security.jwt import create_access_token
-from app.core.security.otp import generate_otp, is_otp_expired, get_otp_expiration
+from app.core.security.otp import (
+    generate_otp,
+    is_otp_expired,
+    get_otp_expiration,
+)
 from app.core.email_service import email_service
 from app.auth.dependencies import get_current_user
 
@@ -64,7 +68,10 @@ def signup(user: UserCreate, db: Session = Depends(get_db)):
     email_service.send_verification_otp(new_user.email, otp)
 
     return {
-        "message": "Account created successfully. Please check your email for verification code.",
+        "message": (
+            "Account created successfully. "
+            "Please check your email for verification code."
+        ),
         "user_id": new_user.id,
         "email": new_user.email,
         "role": new_user.role,
@@ -179,7 +186,10 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
     if not db_user.is_verified:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Email not verified. Please verify your email before logging in.",
+            detail=(
+                "Email not verified. "
+                "Please verify your email before logging in."
+            ),
         )
 
     access_token = create_access_token(
@@ -194,7 +204,9 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
 
 
 @router.post("/forgot-password", response_model=ForgotPasswordResponse)
-def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
+def forgot_password(
+    request: ForgotPasswordRequest, db: Session = Depends(get_db)
+):
     """
     Request password reset OTP.
     Sends OTP to user's registered email address.
@@ -204,7 +216,9 @@ def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db
     if not user:
         # Don't reveal if user exists or not for security
         return {
-            "message": "If the email exists, a password reset code has been sent.",
+            "message": (
+                "If the email exists, a password reset code has been sent."
+            ),
         }
 
     # Generate OTP for password reset
@@ -224,7 +238,9 @@ def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db
 
 
 @router.post("/reset-password", response_model=ResetPasswordResponse)
-def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
+def reset_password(
+    request: ResetPasswordRequest, db: Session = Depends(get_db)
+):
     """
     Reset user password using OTP.
     Validates OTP and updates password.
@@ -240,7 +256,10 @@ def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db))
     if not user.reset_otp:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No password reset request found. Please request a password reset first.",
+            detail=(
+                "No password reset request found. "
+                "Please request a password reset first."
+            ),
         )
 
     if user.reset_otp != request.otp:
@@ -262,7 +281,10 @@ def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db))
     db.commit()
 
     return {
-        "message": "Password reset successfully. You can now login with your new password.",
+        "message": (
+            "Password reset successfully. "
+            "You can now login with your new password."
+        ),
     }
 
 

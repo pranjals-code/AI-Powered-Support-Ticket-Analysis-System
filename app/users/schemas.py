@@ -6,12 +6,12 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     role: UserRole
-    
-    @field_validator('password')
+
+    @field_validator("password")
     @classmethod
     def validate_password(cls, v: str) -> str:
         if len(v) < 8:
-            raise ValueError('Password must be at least 8 characters long')
+            raise ValueError("Password must be at least 8 characters long")
         return v
 
 
@@ -83,19 +83,19 @@ class ResetPasswordRequest(BaseModel):
     otp: str
     new_password: str
     confirm_password: str
-    
-    @field_validator('new_password')
+
+    @field_validator("new_password")
     @classmethod
     def validate_password(cls, v: str) -> str:
         if len(v) < 8:
-            raise ValueError('Password must be at least 8 characters long')
+            raise ValueError("Password must be at least 8 characters long")
         return v
-    
-    @field_validator('confirm_password')
+
+    @field_validator("confirm_password")
     @classmethod
     def passwords_match(cls, v: str, info) -> str:
-        if 'new_password' in info.data and v != info.data['new_password']:
-            raise ValueError('Passwords do not match')
+        if "new_password" in info.data and v != info.data["new_password"]:
+            raise ValueError("Passwords do not match")
         return v
 
 
