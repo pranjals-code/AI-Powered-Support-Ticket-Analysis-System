@@ -124,9 +124,7 @@ AI Support Ticket System Team
         try:
             # Create message
             msg = MIMEMultipart()
-            msg["From"] = (
-                f"{settings.smtp_from_name} <{settings.smtp_from_email}>"
-            )
+            msg["From"] = f"{settings.smtp_from_name} <{settings.smtp_from_email}>"
             msg["To"] = to_email
             msg["Subject"] = subject
 
@@ -134,9 +132,7 @@ AI Support Ticket System Team
             msg.attach(MIMEText(body, "plain"))
 
             # Connect to SMTP server and send
-            with smtplib.SMTP(
-                settings.smtp_host, settings.smtp_port
-            ) as server:
+            with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
                 server.starttls()  # Secure the connection
                 server.login(settings.smtp_username, settings.smtp_password)
                 server.send_message(msg)
