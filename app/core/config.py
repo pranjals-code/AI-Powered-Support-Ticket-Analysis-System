@@ -25,6 +25,16 @@ class Settings(BaseSettings):
     algorithm: str
     access_token_expire_minutes: int
 
+    # ------------------
+    # Email / SMTP
+    # ------------------
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = ""
+    smtp_from_name: str = "AI Support Ticket System"
+
     @property
     def database_url(self) -> str:
         return (
