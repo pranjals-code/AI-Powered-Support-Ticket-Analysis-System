@@ -16,6 +16,12 @@ run-prod:
 	uvicorn $(APP_MODULE) --host $(HOST) --port $(PORT)
 
 # =========================
+# Celery
+# =========================
+celery:
+	celery -A app.core.celery_app.celery_app worker --loglevel=info
+
+# =========================
 # Alembic migrations
 # =========================
 migration:
