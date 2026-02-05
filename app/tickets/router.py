@@ -12,6 +12,7 @@ from app.tickets.schemas import (
     DeleteResponseMessage,
 )
 from app.core.enums import TicketStatus, UserRole
+from app.tasks.ai_tasks import classify_ticket_task
 from app.auth.dependencies import get_current_user
 from app.users.models import User
 
@@ -20,6 +21,22 @@ MAX_PHOTO_SIZE = 6 * 1024 * 1024  # 6 MB
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 router = APIRouter(prefix="/tickets", tags=["Tickets"])
+
+
+def _can_view_ticket(ticket: Ticket, user: User) -> bool:
+    if user.role in [UserRole.ADMIN, UserRole.MANAGER]:
+        return True
+    if user.role == UserRole.AGENT:
+        return ticket.assigned_agent_id == user.id
+    return ticket.created_by == user.id
+
+
+def _apply_ticket_rbac_filter(query, user: User):
+    if user.role in [UserRole.ADMIN, UserRole.MANAGER]:
+        return query
+    if user.role == UserRole.AGENT:
+        return query.filter(Ticket.assigned_agent_id == user.id)
+    return query.filter(Ticket.created_by == user.id)
 
 
 async def _handle_text_update(
@@ -160,6 +177,8 @@ async def create_ticket(
     db.commit()
     db.refresh(ticket)
 
+    classify_ticket_task.delay(ticket.id)
+
     return ticket
 
 
@@ -203,6 +222,7 @@ def get_all_tickets(
 
     # Build base query
     query = db.query(Ticket)
+    query = _apply_ticket_rbac_filter(query, current_user)
 
     # Apply status filter if provided
     if status:
@@ -245,6 +265,32 @@ def get_all_tickets(
     )
 
 
+@router.get(
+    "/{ticket_id}",
+    response_model=TicketResponse,
+    status_code=status.HTTP_200_OK,
+)
+def get_ticket_by_id(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ticket not found",
+        )
+
+    if not _can_view_ticket(ticket, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this ticket",
+        )
+
+    return ticket
+
+
 @router.patch(
     "/{ticket_id}/status",
     response_model=TicketResponse,
@@ -261,19 +307,26 @@ def update_ticket_status(
     Only MANAGER and ADMIN roles can update ticket status.
     USER role cannot update status.
     """
-    # Check if user is MANAGER or ADMIN
-    if current_user.role not in [UserRole.ADMIN, UserRole.MANAGER]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only managers and admins can update ticket status",
-        )
-
     ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
 
     if not ticket:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Ticket not found",
+        )
+
+    if current_user.role in [UserRole.ADMIN, UserRole.MANAGER]:
+        pass
+    elif current_user.role == UserRole.AGENT:
+        if ticket.assigned_agent_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Agents can only update assigned tickets",
+            )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only agents, managers, and admins can update ticket status",
         )
 
     ticket.status = payload.get("status")
@@ -311,6 +364,12 @@ async def update_ticket(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Ticket not found",
+        )
+
+    if not _can_view_ticket(ticket, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this ticket",
         )
 
     # Check if user is the creator or admin/manager

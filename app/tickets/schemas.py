@@ -31,6 +31,8 @@ class TicketResponse(BaseModel):
     file_filename: Optional[str]
 
     created_at: datetime
+    updated_at: Optional[datetime] = None
+    assigned_agent_id: Optional[int] = None
 
     class Config:
         from_attributes = True

@@ -35,6 +35,18 @@ class Settings(BaseSettings):
     smtp_from_email: str = ""
     smtp_from_name: str = "AI Support Ticket System"
 
+    # ------------------
+    # AI Service
+    # ------------------
+    ai_service_url: str = "http://localhost:8001"
+    ai_service_timeout_seconds: float = 3.0
+
+    # ------------------
+    # Celery / Redis
+    # ------------------
+    celery_broker_url: str = "redis://localhost:6379/0"
+    celery_result_backend: str = "redis://localhost:6379/0"
+
     @property
     def database_url(self) -> str:
         return (
