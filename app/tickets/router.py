@@ -4,6 +4,7 @@ from typing import Optional
 from fastapi import HTTPException
 import math
 
+from app.core.s3 import upload_file_to_s3
 from app.core.database import get_db
 from app.tickets.models import Ticket
 from app.tickets.schemas import (
@@ -74,54 +75,61 @@ async def _handle_file_operations(
     remove_file: bool,
     is_creator: bool,
 ) -> None:
-    """Handle photo and file upload/removal with permission checks."""
+
     if not (photo or remove_photo or file or remove_file):
         return
 
     if not is_creator:
-        detail_msg = "Only the ticket creator can add or " "remove attachments"
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=detail_msg,
+            detail="Only the ticket creator can add/remove attachments"
         )
 
-    # Handle photo upload
+    # ✅ PHOTO upload
     if photo:
         photo_content = await photo.read()
         if len(photo_content) > MAX_PHOTO_SIZE:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Photo size must be less than 6 MB",
+                status_code=400,
+                detail="Photo size must be less than 6 MB"
             )
-        ticket.photo = photo_content
+
+        ticket.photo = upload_file_to_s3(photo.file, photo.filename)
         ticket.photo_filename = photo.filename
 
-    # Handle photo removal
+    # ❌ remove photo
     if remove_photo:
         ticket.photo = None
         ticket.photo_filename = None
 
-    # Handle file upload
+    # ✅ FILE upload
     if file:
         file_content = await file.read()
         if len(file_content) > MAX_FILE_SIZE:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="File size must be less than 10 MB",
+                status_code=400,
+                detail="File size must be less than 10 MB"
             )
-        ticket.file = file_content
+
+        ticket.file = upload_file_to_s3(file.file, file.filename)
         ticket.file_filename = file.filename
 
-    # Handle file removal
+    # ❌ remove file
     if remove_file:
         ticket.file = None
         ticket.file_filename = None
-
 
 @router.post(
     "",
     response_model=TicketResponse,
     status_code=status.HTTP_201_CREATED,
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "multipart/form-data": {}
+            }
+        }
+    }
 )
 async def create_ticket(
     title: str = Form(...),
@@ -133,12 +141,12 @@ async def create_ticket(
 ):
     """
     Create a new ticket with optional photo and file attachments.
-    Photo size limit: 6 MB
-    File size limit: 10 MB
     """
-    # Validate photo size
-    photo_data = None
-    photo_filename = None
+
+    photo_url = None
+    file_url = None
+
+    # ✅ PHOTO upload to S3
     if photo:
         photo_content = await photo.read()
         if len(photo_content) > MAX_PHOTO_SIZE:
@@ -146,12 +154,10 @@ async def create_ticket(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Photo size must be less than 6 MB",
             )
-        photo_data = photo_content
-        photo_filename = photo.filename
 
-    # Validate file size
-    file_data = None
-    file_filename = None
+        photo_url = upload_file_to_s3(photo)
+
+    # ✅ FILE upload to S3
     if file:
         file_content = await file.read()
         if len(file_content) > MAX_FILE_SIZE:
@@ -159,18 +165,18 @@ async def create_ticket(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="File size must be less than 10 MB",
             )
-        file_data = file_content
-        file_filename = file.filename
+
+        file_url = upload_file_to_s3(file.file, file.filename)
 
     ticket = Ticket(
         title=title,
         description=description,
         status=TicketStatus.CREATED,
         created_by=current_user.id,
-        photo=photo_data,
-        photo_filename=photo_filename,
-        file=file_data,
-        file_filename=file_filename,
+        photo=photo_url,          # ✅ URL stored
+        photo_filename=photo.filename if photo else None,
+        file=file_url,            # ✅ URL stored
+        file_filename=file.filename if file else None,
     )
 
     db.add(ticket)
@@ -180,7 +186,6 @@ async def create_ticket(
     classify_ticket_task.delay(ticket.id)
 
     return ticket
-
 
 @router.get(
     "",

@@ -39,11 +39,11 @@ class Ticket(Base):
     )
 
     # Photo/Screenshot (max 6 MB) - stored as binary
-    photo = Column(LargeBinary, nullable=True)
+    photo = Column(String, nullable=True)   # S3 URL
     photo_filename = Column(String(255), nullable=True)
 
     # File attachment (max 10 MB) - stored as binary
-    file = Column(LargeBinary, nullable=True)
+    file = Column(String, nullable=True)   # S3 URL
     file_filename = Column(String(255), nullable=True)
 
     created_by = Column(
